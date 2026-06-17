@@ -2,11 +2,11 @@
 
 
 
-The files associated with generating the various plots are available in chapter2.R for the initial investigation and chapter6.R for the remainder of the analysis. Please note that this expects the original code from https://github.com/callumbarltrop/SPAR/blob/main/master\_functions.R to be available from the call source("SPAR-rcode/master\_functions.R").
+The files associated with generating the various plots are available in chapter2.R for the initial investigation and chapter6.R for the remainder of the analysis. Please note that this expects the original code from https://github.com/callumbarltrop/SPAR/blob/main/master_functions.R to be available from the call source("SPAR-rcode/master_functions.R").
 
 
 
-\## ARSPAR API
+## ARSPAR API
 
 
 
@@ -14,242 +14,147 @@ Some of the ARSPAR API is documented with inline documentation, though it is not
 
 
 
-You can create a `spar\_representation` object by calling `spar\_representation()`
+You can create a `spar_representation` object by calling `spar_representation()`
 
 ```R
-
-spar <- spar\_representation(X = dataset)
-
+spar <- spar_representation(X = dataset)
 ```
 
 If a `time` parameter is passed this will be used to order the sequential data and included in the representation.
-
 If a `time` parameter is not passed `rownames` will be used if it is suitable.
-
-The names of the columns in the data provided as the `X` parameter will be adhered to when data is accessed later. This is stored in the `schema` which can be inspected through `spar$schema` when `spar` is a `spar\_representation`.
-
+The names of the columns in the data provided as the `X` parameter will be adhered to when data is accessed later. This is stored in the `schema` which can be inspected through `spar$schema` when `spar` is a `spar_representation`.
 
 
-In order to provide an angular-radial representation of the data, the data will need to be centered about the origin. Transformations are defined through the function `spar\_build\_representation\_transform(...)`.
 
+In order to provide an angular-radial representation of the data, the data will need to be centered about the origin. Transformations are defined through the function `spar_build_representation_transform(...)`.
 ```R
-
-spar <- spar |> spar\_build\_representation\_transform(...)
-
+spar <- spar |> spar_build_representation_transform(...)
 ```
 
-This function takes arguments of transformation steps which can be created through the function `spar\_step\_mutate`, as well as a name parameter for the transformation and an optional parameter `run`, which allows the option to create the transformation without running it.
-
+This function takes arguments of transformation steps which can be created through the function `spar_step_mutate`, as well as a name parameter for the transformation and an optional parameter `run`, which allows the option to create the transformation without running it.
 ```R
-
-spar <- spar |> spar\_build\_representation\_transform(
-
-&#x09;spar\_step\_mutate(tm2 = tm2 - mean(tm2), hs = hs - mean(hs), .name = "center\_mean"),
-
-&#x09;spar\_step\_mutate(tm2 = tm2/sd(tm2), hs = hs/sd(hs), .name = "scale\_sd"),
-
-&#x09;name = "center\_scale",
-
-&#x09;run = TRUE
-
+spar <- spar |> spar_build_representation_transform(
+	spar_step_mutate(tm2 = tm2 - mean(tm2), hs = hs - mean(hs), .name = "center_mean"),
+	spar_step_mutate(tm2 = tm2/sd(tm2), hs = hs/sd(hs), .name = "scale_sd"),
+	name = "center_scale",
+	run = TRUE
 )
-
 ```
-
-`spar\_step\_mutate` takes a collection of expressions to be evaluated against the stored data. The stored data within the `spar\_representation` is transformed to a normalized naming pattern, however the expressions are evaluated against the naming schema defined from the data passed during the creation of the representation. The expressions provided in `spar\_step\_mutate` can reference the result at the current step of the transformation chain through `hs`, the original state through `.hs` and the state at a specific step through `center\_mean.hs`. When building a transformation representation products such as `sd(hs)` and `mean(hs)` are cached and stored. This can all be inspected by viewing the transformation chain object `str(spar$transform$chains$center\_scale)`.
+`spar_step_mutate` takes a collection of expressions to be evaluated against the stored data. The stored data within the `spar_representation` is transformed to a normalized naming pattern, however the expressions are evaluated against the naming schema defined from the data passed during the creation of the representation. The expressions provided in `spar_step_mutate` can reference the result at the current step of the transformation chain through `hs`, the original state through `.hs` and the state at a specific step through `center_mean.hs`. When building a transformation representation products such as `sd(hs)` and `mean(hs)` are cached and stored. This can all be inspected by viewing the transformation chain object `str(spar$transform$chains$center_scale)`.
 
 
 
 Automatic inverse transformations are not yet implemented, however an inverse transformation may be manually defined
-
 ```R
-
-spar <- spar |> spar\_set\_transform\_inverse(inverse = function(M){
-
-&#x09;M = sweep(M, 2, colSd(spar$data$X\_original), "\*")
-
-&#x09;sweep(M, 2, colMeans(spar$data$X\_original), "+")
-
-}, "center\_scale")
-
+spar <- spar |> spar_set_transform_inverse(inverse = function(M){
+	M = sweep(M, 2, colSd(spar$data$X_original), "*")
+	sweep(M, 2, colMeans(spar$data$X_original), "+")
+}, "center_scale")
 ```
 
 
 
 Angular-radial transformations are defined from angular and radial maps
-
 ```R
-
-l1\_radial <- function(M) {
-
-&#x20; M <- as.matrix(M)
-
-&#x20; abs(M\[, 1]) + abs(M\[, 2])
-
+l1_radial <- function(M) {
+	M <- as.matrix(M)
+	abs(M[, 1]) + abs(M[, 2])
 }
 
-l1\_angle <- function(M) {
-
-&#x20; M <- as.matrix(M)
-
-&#x20; s <- abs(M\[, 1]) + abs(M\[, 2])
-
-&#x20; a <- sign(M\[, 2])
-
-&#x20; a\[a == 0] <- 1
-
-&#x20; out <- a \* (1 - M\[, 1] / s)
-
-&#x20; out\[s == 0] <- NA\_real\_
-
-&#x20; out
-
+l1_angle <- function(M) {
+	M <- as.matrix(M)
+	s <- abs(M[, 1]) + abs(M[, 2])
+	a <- sign(M[, 2])
+	a[a == 0] <- 1
+	out <- a * (1 - M[, 1] / s)
+	out[s == 0] <- NA_real_
+	out
 }
-
 ```
 
-And an `angle\_domain` object
+And an `angle_domain` object
 
 ```R
-
-angular\_domain <- new\_spar\_angle\_domain(type = "cyclical", lower = -2, upper = 2, closed\_left = TRUE, closed\_right = FALSE, label = "L1 Pseudo-angle")
-
+angular_domain <- new_spar_angle_domain(type = "cyclical", lower = -2, upper = 2, closed_left = TRUE, closed_right = FALSE, label = "L1 Pseudo-angle")
 ```
 
 
 
-The angular-radial representation is then defined by calling `spar\_build\_angular\_representation`
-
+The angular-radial representation is then defined by calling `spar_build_angular_representation`
 ```R
-
-spar <- spar |> spar\_build\_angular\_representation(
-
-&#x09;radial\_fun = l1\_radial,
-
-&#x09;angle\_fun = l1\_angle,
-
-&#x09;domain = angular\_domain,
-
-&#x09;source = "transformed",
-
-&#x09;inverse\_fun = angular\_inverse,
-
-&#x09;name = "L1"
-
+spar <- spar |> spar_build_angular_representation(
+	radial_fun = l1_radial,
+	angle_fun = l1_angle,
+	domain = angular_domain,
+	source = "transformed",
+	inverse_fun = angular_inverse,
+	name = "L1"
 )
-
 ```
+Here the `inverse_fun` argument allows the user to provide an inverse map, this is currently not used in
+the package itself, however it provides convenient storage of the inverse map. 
 
 
-
-Thresholds are fit using the `spar\_fit\_threshold` function, currently only one method is implemented, `evgam\_ald`
-
+Thresholds are fit using the `spar_fit_threshold` function, currently only one method is implemented, `evgam_ald`
 ```R
-
-spar <- spar |> spar\_fit\_threshold(
-
-&#x09;method = "evgam\_ald",
-
-&#x09;name = name,
-
-&#x09;tau = tau,
-
-&#x09;phi\_grid\_n = 2001,
-
-&#x09;k = 30,
-
-&#x09;trace = 1,
-
-&#x09;verbose = TRUE,
-
-&#x09;set\_active = TRUE,
-
-&#x09;apply = TRUE,
-
-&#x09;compute\_excess = TRUE,
-
-&#x09;storage = "compact"
-
+spar <- spar |> spar_fit_threshold(
+	method = "evgam_ald",
+	name = name,
+	tau = tau,
+	phi_grid_n = 2001,
+	k = 30,
+	trace = 1,
+	verbose = TRUE,
+	set_active = TRUE,
+	apply = TRUE,
+	compute_excess = TRUE,
+	storage = "compact"
 )
-
 ```
 
 The parameter `storage` reduces the storage requirements of a threshold fit by only storing the resulting threshold estimates instead of the entire `evgam` object.
 
-
-
-
-
-\## Declustering
+## Declustering
 
 
 
 Currently the declustering API is in need of some overhauling as some of the summaries do not take full advantage of previously computed values.
 
-
-
-The primary call for declustering is `spar\_decluster\_excursions`
-
+The primary call for declustering is `spar_decluster_excursions`
 ```R
-
 spar <- spar |> 
-
-&#x20; spar\_decluster\_excursions(gap\_rule = 6)
-
+	spar_decluster_excursions(gap_rule = 6)
 ```
+Which finds the exceedance spans and groups the spans by the `gap_rule` parameter.
 
-Which finds the exceedance spans and groups the spans by the `gap\_rule` parameter.
-
-
-
-Exceedance spans are obtained from the `extract\_exceedance\_spans` function
-
+Exceedance spans are obtained from the `extract_exceedance_spans` function
 ```R
-
-exceedance\_spans <- extract\_exceedance\_spans(spar$excursions$pointwise)
-
+exceedance_spans <- extract_exceedance_spans(spar$excursions$pointwise)
 ```
 
 
 
-The excursion path groups are build from the `spar\_build\_excursion\_path\_group` call, it can optionally be stored in the spar\_representation or the function can return the groups dependent on the `store` parameter
-
+The excursion path groups are build from the `spar_build_excursion_path_group` call, it can optionally be stored in the spar_representation or the function can return the groups dependent on the `store` parameter
 ```R
-
-path\_groups <- spar |> 
-
-&#x20; spar\_build\_excursion\_path\_group(
-
-&#x20;   gap\_rule = 6,
-
-&#x20;   space = "transformed",
-
-&#x20;   keep\_prev\_next = TRUE,
-
-&#x20;   store = FALSE
-
-&#x20; )
-
+path_groups <- spar |> 
+	spar_build_excursion_path_group(
+	  gap_rule = 6,
+	  space = "transformed",
+	  keep_prev_next = TRUE,
+	  store = FALSE
+	)
 ```
 
 
 
-Upper sample envelopes are built through the function `spar\_build\_upper\_excursion\_paths`
-
+Upper sample envelopes are built through the function `spar_build_upper_excursion_paths`
 ```R
-
-upper\_paths <- spar |> spar\_build\_upper\_excursion\_paths(
-
-&#x20; path\_group = path\_groups,
-
-&#x20; gap\_rule = gap\_rule,
-
-&#x20; space = "transformed",
-
-&#x20; store = FALSE
-
+upper_paths <- spar |> spar_build_upper_excursion_paths(
+	path_group = path_groups,
+	gap_rule = gap_rule,
+	space = "transformed",
+	store = FALSE
 )
-
 ```
 
 
